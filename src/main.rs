@@ -19,9 +19,10 @@ fn main() -> io::Result<()> {
 
         let mut command_iter = command_string.split_whitespace();
         let command = command_iter.next();
+        let args = command_iter;
 
         if let Some(program) = command {
-            let command_output = Command::new(program).args(command_iter).output()?;
+            let command_output = Command::new(program).args(args).output()?;
             stdout.write_all(&command_output.stdout)?;
         }
     }
