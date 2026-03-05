@@ -1,4 +1,5 @@
 use std::io::{self, BufRead, Write};
+use std::process::Command;
 
 fn main() -> io::Result<()> {
     loop {
@@ -14,6 +15,13 @@ fn main() -> io::Result<()> {
 
         if command_string == ":q" || command_string == "exit" {
             break;
+        }
+
+        let mut command_iter = command_string.split_whitespace();
+        let command = command_iter.next();
+
+        if let Some(program) = command {
+            let command_output = Command::new(program).args(command_iter).output()?;
         }
     }
 
