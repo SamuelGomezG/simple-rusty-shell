@@ -22,6 +22,7 @@ fn main() -> io::Result<()> {
 
         if let Some(program) = command {
             let command_output = Command::new(program).args(command_iter).output()?;
+            stdout.write_all(&command_output.stdout)?;
         }
     }
 
