@@ -13,7 +13,8 @@ exit | :q   : Close the shell.\n
 fn main() -> io::Result<()> {
     loop {
         let mut stdout = io::stdout().lock();
-        stdout.write_all(b">> ")?;
+        let current_dir = env::current_dir()?;
+        stdout.write_all(format!("{}>> ", current_dir.display()).as_bytes())?;
         stdout.flush()?;
 
         let mut input_buffer = String::new();
