@@ -1,5 +1,14 @@
+use std::env;
 use std::io::{self, BufRead, Write};
-use std::process::Command;
+use std::path::Path;
+use std::process;
+
+const HELP_TEXT: &str = "Simple Rusty Shell - v0.1
+Available built-in commands:
+cd <path>   : Change current directory to <path>
+help        : Show this message.
+exit | :q   : Close the shell.\n
+";
 
 fn main() -> io::Result<()> {
     loop {
@@ -12,20 +21,49 @@ fn main() -> io::Result<()> {
         stdin.read_line(&mut input_buffer)?;
 
         let command_string = input_buffer.trim();
-
-        if command_string == ":q" || command_string == "exit" {
-            break;
-        }
-
         let mut command_iter = command_string.split_whitespace();
         let command = command_iter.next();
-        let args = command_iter;
+        let mut args = command_iter;
 
+        let mut stderr = io::stderr().lock();
         if let Some(program) = command {
-            let command_output = Command::new(program).args(args).output()?;
-            stdout.write_all(&command_output.stdout)?;
+            match program {
+                "cd" => {
+                    if let Some(input_path) = args.next() {
+                        let path = Path::new(input_path);
+
+                        match env::set_current_dir(path) {
+                            Ok(_) => {}
+                            Err(_) => {
+                                stdout.write_all(b"Provided directory does not exist.")?;
+                                stdout.flush()?;
+                            }
+                        }
+                    } else {
+                        match env::home_dir() {
+                            Some(path) => {
+                                env::set_current_dir(path).ok();
+                            }
+                            None => {
+                                stderr.write_all(b"Impossible to get your home directory.")?;
+                                stderr.flush()?;
+                            }
+                        }
+                    }
+                }
+                "help" => {
+                    stdout.write_all(HELP_TEXT.as_bytes())?;
+                }
+                "exit" | ":q" => {
+                    process::exit(0);
+                }
+                _ => {
+                    let command_output = process::Command::new(program).args(args).output()?;
+                    stdout.write_all(&command_output.stdout)?;
+                    stdout.write_all(b"\n")?;
+                    stdout.flush()?;
+                }
+            }
         }
     }
-
-    Ok(())
 }
