@@ -35,8 +35,8 @@ fn main() -> io::Result<()> {
                         match env::set_current_dir(path) {
                             Ok(_) => {}
                             Err(_) => {
-                                stdout.write_all(b"Provided directory does not exist.")?;
-                                stdout.flush()?;
+                                stderr.write_all(b"Provided directory does not exist.\n\n")?;
+                                stderr.flush()?;
                             }
                         }
                     } else {
@@ -45,7 +45,7 @@ fn main() -> io::Result<()> {
                                 env::set_current_dir(path).ok();
                             }
                             None => {
-                                stderr.write_all(b"Impossible to get your home directory.")?;
+                                stderr.write_all(b"Impossible to get your home directory.\n\n")?;
                                 stderr.flush()?;
                             }
                         }
@@ -58,10 +58,19 @@ fn main() -> io::Result<()> {
                     process::exit(0);
                 }
                 _ => {
-                    let command_output = process::Command::new(program).args(args).output()?;
-                    stdout.write_all(&command_output.stdout)?;
-                    stdout.write_all(b"\n")?;
-                    stdout.flush()?;
+                    let command_output = process::Command::new(program).args(args).output();
+
+                    match command_output {
+                        Err(e) => {
+                            stderr.write_all(format!("Error: {}\n\n", e).as_bytes())?;
+                            stderr.flush()?;
+                        }
+                        Ok(output) => {
+                            stdout.write_all(&output.stdout)?;
+                            stdout.write_all(b"\n")?;
+                            stdout.flush()?;
+                        }
+                    }
                 }
             }
         }
