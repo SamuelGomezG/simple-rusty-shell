@@ -1,7 +1,7 @@
 use std::env;
 use std::io::{self, BufRead, Write};
-use std::path::Path;
-use std::process;
+use std::path::{Path, PathBuf};
+use std::process::{self, Stdio};
 
 const HELP_TEXT: &str = "Simple Rusty Shell - v0.1
 Available built-in commands:
@@ -14,83 +14,79 @@ const RED: &str = "\x1b[31m";
 const BLUE: &str = "\x1b[34m";
 const RESET: &str = "\x1b[0m";
 
-fn main() -> io::Result<()> {
-    loop {
-        let mut stdout = io::stdout().lock();
-        let current_dir = env::current_dir()?;
-        stdout.write_all(format!("{}{} {}>> ", BLUE, current_dir.display(), RESET).as_bytes())?;
-        stdout.flush()?;
+fn print_prompt(stdout: &mut impl Write, current_dir: &Path) -> io::Result<()> {
+    write!(stdout, "{}{} {}>> ", BLUE, current_dir.display(), RESET)?;
+    stdout.flush()
+}
 
-        let mut input_buffer = String::new();
-        let mut stdin = io::stdin().lock();
+fn print_error(stderr: &mut impl Write, msg: &str) -> io::Result<()> {
+    write!(stderr, "{}Error: {}{}\n\n", RED, msg, RESET)?;
+    stderr.flush()
+}
+
+fn run_cd(stderr: &mut impl Write, arg: Option<&str>, current_dir: &mut PathBuf) -> io::Result<()> {
+    let path = match arg {
+        Some(input_path) => PathBuf::from(input_path),
+        None => match env::home_dir() {
+            Some(home) => home,
+            None => return print_error(stderr, "Impossible to get your home directory."),
+        },
+    };
+
+    if let Err(e) = env::set_current_dir(&path) {
+        print_error(stderr, &e.to_string())?;
+    } else {
+        *current_dir = env::current_dir()?;
+    }
+    Ok(())
+}
+
+fn run_external(
+    stderr: &mut impl Write,
+    program: &str,
+    args: std::str::SplitWhitespace<'_>,
+) -> io::Result<()> {
+    match process::Command::new(program)
+        .args(args)
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .spawn()
+    {
+        Err(e) => print_error(stderr, &e.to_string()),
+        Ok(mut child) => {
+            child.wait()?;
+            Ok(())
+        }
+    }
+}
+
+fn main() -> io::Result<()> {
+    let stdout = io::stdout();
+    let mut stdout = stdout.lock();
+    let stdin = io::stdin();
+    let mut stdin = stdin.lock();
+    let stderr = io::stderr();
+    let mut stderr = stderr.lock();
+
+    let mut current_dir = env::current_dir()?;
+    let mut input_buffer = String::new();
+
+    loop {
+        print_prompt(&mut stdout, &current_dir)?;
+
+        input_buffer.clear();
         stdin.read_line(&mut input_buffer)?;
 
         let command_string = input_buffer.trim();
         let mut command_iter = command_string.split_whitespace();
-        let command = command_iter.next();
-        let mut args = command_iter;
 
-        let mut stderr = io::stderr().lock();
-        if let Some(program) = command {
+        if let Some(program) = command_iter.next() {
             match program {
-                "cd" => {
-                    if let Some(input_path) = args.next() {
-                        let path = Path::new(input_path);
-
-                        match env::set_current_dir(path) {
-                            Ok(_) => {}
-                            Err(_) => {
-                                stderr.write_all(
-                                    format!(
-                                        "{}Error: {}{}\n\n",
-                                        RED, "Provided directory does not exist.", RESET
-                                    )
-                                    .as_bytes(),
-                                )?;
-                                stderr.flush()?;
-                            }
-                        }
-                    } else {
-                        match env::home_dir() {
-                            Some(path) => {
-                                env::set_current_dir(path).ok();
-                            }
-                            None => {
-                                stderr.write_all(
-                                    format!(
-                                        "{}Error: {}{}\n\n",
-                                        RED, "Impossible to get your home directory.", RESET
-                                    )
-                                    .as_bytes(),
-                                )?;
-                                stderr.flush()?;
-                            }
-                        }
-                    }
-                }
-                "help" => {
-                    stdout.write_all(HELP_TEXT.as_bytes())?;
-                }
-                "exit" | ":q" => {
-                    process::exit(0);
-                }
-                _ => {
-                    let command_output = process::Command::new(program).args(args).output();
-
-                    match command_output {
-                        Err(e) => {
-                            stderr.write_all(
-                                format!("{}Error: {}{}\n\n", RED, e, RESET).as_bytes(),
-                            )?;
-                            stderr.flush()?;
-                        }
-                        Ok(output) => {
-                            stdout.write_all(&output.stdout)?;
-                            stdout.write_all(b"\n")?;
-                            stdout.flush()?;
-                        }
-                    }
-                }
+                "cd" => run_cd(&mut stderr, command_iter.next(), &mut current_dir)?,
+                "help" => write!(stdout, "{}", HELP_TEXT)?,
+                "exit" | ":q" => process::exit(0),
+                _ => run_external(&mut stderr, program, command_iter)?,
             }
         }
     }
