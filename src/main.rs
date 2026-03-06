@@ -10,11 +10,15 @@ help        : Show this message.
 exit | :q   : Close the shell.\n
 ";
 
+const RED: &str = "\x1b[31m";
+const BLUE: &str = "\x1b[34m";
+const RESET: &str = "\x1b[0m";
+
 fn main() -> io::Result<()> {
     loop {
         let mut stdout = io::stdout().lock();
         let current_dir = env::current_dir()?;
-        stdout.write_all(format!("{}>> ", current_dir.display()).as_bytes())?;
+        stdout.write_all(format!("{}{} {}>> ", BLUE, current_dir.display(), RESET).as_bytes())?;
         stdout.flush()?;
 
         let mut input_buffer = String::new();
@@ -36,7 +40,13 @@ fn main() -> io::Result<()> {
                         match env::set_current_dir(path) {
                             Ok(_) => {}
                             Err(_) => {
-                                stderr.write_all(b"Provided directory does not exist.\n\n")?;
+                                stderr.write_all(
+                                    format!(
+                                        "{}Error: {}{}\n\n",
+                                        RED, "Provided directory does not exist.", RESET
+                                    )
+                                    .as_bytes(),
+                                )?;
                                 stderr.flush()?;
                             }
                         }
@@ -46,7 +56,13 @@ fn main() -> io::Result<()> {
                                 env::set_current_dir(path).ok();
                             }
                             None => {
-                                stderr.write_all(b"Impossible to get your home directory.\n\n")?;
+                                stderr.write_all(
+                                    format!(
+                                        "{}Error: {}{}\n\n",
+                                        RED, "Impossible to get your home directory.", RESET
+                                    )
+                                    .as_bytes(),
+                                )?;
                                 stderr.flush()?;
                             }
                         }
@@ -63,7 +79,9 @@ fn main() -> io::Result<()> {
 
                     match command_output {
                         Err(e) => {
-                            stderr.write_all(format!("Error: {}\n\n", e).as_bytes())?;
+                            stderr.write_all(
+                                format!("{}Error: {}{}\n\n", RED, e, RESET).as_bytes(),
+                            )?;
                             stderr.flush()?;
                         }
                         Ok(output) => {
