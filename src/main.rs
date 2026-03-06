@@ -25,16 +25,18 @@ fn print_error(stderr: &mut impl Write, msg: &str) -> io::Result<()> {
 }
 
 fn run_cd(stderr: &mut impl Write, arg: Option<&str>, current_dir: &mut PathBuf) -> io::Result<()> {
+    let mut log_err = |msg: &str| print_error(stderr, msg);
+
     let path = match arg {
         Some(input_path) => PathBuf::from(input_path),
         None => match env::home_dir() {
             Some(home) => home,
-            None => return print_error(stderr, "Impossible to get your home directory."),
+            None => return log_err("Impossible to get your home directory."),
         },
     };
 
     if let Err(e) = env::set_current_dir(&path) {
-        print_error(stderr, &e.to_string())?;
+        log_err(&e.to_string())?;
     } else {
         *current_dir = env::current_dir()?;
     }
