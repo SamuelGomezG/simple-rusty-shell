@@ -1,7 +1,9 @@
+use std::collections::HashMap;
 use std::env;
-use std::io::{self, BufRead, Write};
+use std::io::{self, BufRead, StderrLock, StdoutLock, Write};
 use std::path::{Path, PathBuf};
 use std::process::{self, Stdio};
+use std::str::SplitWhitespace;
 
 const HELP_TEXT: &str = "Simple Rusty Shell - v0.1
 Available built-in commands:
@@ -73,6 +75,23 @@ fn main() -> io::Result<()> {
 
     let mut current_dir = env::current_dir()?;
     let mut input_buffer = String::new();
+
+    let mut commands: HashMap<
+        String,
+        Box<
+            dyn FnMut(
+                &mut StderrLock,
+                &mut StdoutLock,
+                &mut PathBuf,
+                SplitWhitespace,
+            ) -> io::Result<()>,
+        >,
+    > = HashMap::new();
+
+    commands.insert(
+        "help".to_string(),
+        Box::new(|stderr, stdout, cur_dir, args| write!(stdout, "{}", HELP_TEXT)),
+    );
 
     loop {
         print_prompt(&mut stdout, &current_dir)?;
